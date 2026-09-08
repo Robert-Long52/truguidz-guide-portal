@@ -32,6 +32,86 @@ const TRIP_LENGTH_OPTIONS = [
 ];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+// ---------------- Availability calendar ----------------
+// Mirrors AvailabilityCalendarView.swift: a month grid where each day is
+// Booked (confirmed wins), Pending, or Open, walking each booking's full
+// date...end_date span (not just its start day) so a multi-day package
+// shades every day it actually occupies.
+let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function buildStatusByDay(bookings) {
+  const map = new Map();
+  bookings.forEach((b) => {
+    if (b.status !== "pending" && b.status !== "confirmed") return;
+    let day = new Date(b.date);
+    day.setHours(0, 0, 0, 0);
+    const last = new Date(b.end_date);
+    last.setHours(0, 0, 0, 0);
+    while (day <= last) {
+      const key = dateKey(day);
+      if (map.get(key) !== "confirmed") map.set(key, b.status);
+      day = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+    }
+  });
+  return map;
+}
+
+function renderAvailabilityCalendar(bookings) {
+  const wrap = h(`
+    <div class="card cal-card">
+      <div class="cal-header">
+        <button class="btn btn-ghost btn-small" id="calPrev">‹</button>
+        <div class="cal-title" id="calTitle"></div>
+        <button class="btn btn-ghost btn-small" id="calNext">›</button>
+      </div>
+      <div class="cal-weekdays">${DAY_LABELS.map((d) => `<span>${d[0]}</span>`).join("")}</div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="cal-legend">
+        <span class="cal-legend-item"><i class="cal-dot cal-dot-booked"></i>Booked</span>
+        <span class="cal-legend-item"><i class="cal-dot cal-dot-pending"></i>Pending</span>
+        <span class="cal-legend-item"><i class="cal-dot cal-dot-open"></i>Open</span>
+      </div>
+    </div>
+  `);
+
+  const statusByDay = buildStatusByDay(bookings);
+
+  function paint() {
+    wrap.querySelector("#calTitle").textContent = calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const grid = wrap.querySelector("#calGrid");
+    grid.innerHTML = "";
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    for (let i = 0; i < firstWeekday; i++) {
+      grid.appendChild(h(`<div class="cal-day cal-day-empty"></div>`));
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = dateKey(new Date(year, month, d));
+      const status = statusByDay.get(key);
+      const cls = status === "confirmed" ? "cal-day-booked" : status === "pending" ? "cal-day-pending" : "";
+      grid.appendChild(h(`<div class="cal-day ${cls}">${d}</div>`));
+    }
+  }
+
+  wrap.querySelector("#calPrev").addEventListener("click", () => {
+    calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+    paint();
+  });
+  wrap.querySelector("#calNext").addEventListener("click", () => {
+    calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+    paint();
+  });
+
+  paint();
+  return wrap;
+}
+
 // ---------------- App state ----------------
 const state = {
   session: null,
@@ -583,7 +663,14 @@ async function renderBookingsView() {
   appEl.innerHTML = `<div class="loading">Loading bookings&hellip;</div>`;
   await loadBookings();
 
-  const wrap = h(`<div><h1>Bookings</h1><div id="bookingsBody"></div></div>`);
+  const wrap = h(`
+    <div>
+      <h1>Bookings</h1>
+      <div id="calendarWrap" style="margin-bottom:20px;"></div>
+      <div id="bookingsBody"></div>
+    </div>
+  `);
+  wrap.querySelector("#calendarWrap").appendChild(renderAvailabilityCalendar(state.bookings));
   const body = wrap.querySelector("#bookingsBody");
 
   if (state.bookings.length === 0) {

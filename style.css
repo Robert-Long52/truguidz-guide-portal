@@ -268,6 +268,52 @@ textarea { resize: vertical; min-height: 90px; }
 
 .empty-state { text-align: center; padding: 50px 20px; color: var(--ink-soft); }
 
+/* ---------- Availability calendar ---------- */
+.cal-card { margin-bottom: 4px; }
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.cal-title { font-weight: 700; font-size: 16px; }
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 6px;
+}
+.cal-weekdays span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  background: #f1ece0;
+  color: var(--ink);
+}
+.cal-day-empty { background: transparent; }
+.cal-day-booked { background: var(--green); color: #fff; font-weight: 700; }
+.cal-day-pending { background: var(--accent); color: #fff; font-weight: 700; }
+.cal-legend { display: flex; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
+.cal-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-soft); }
+.cal-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.cal-dot-booked { background: var(--green); }
+.cal-dot-pending { background: var(--accent); }
+.cal-dot-open { background: #f1ece0; border: 1px solid var(--rule); }
+
 @media (max-width: 560px) {
   .nav { width: 100%; justify-content: flex-start; }
   .listing-card { flex-wrap: wrap; }
