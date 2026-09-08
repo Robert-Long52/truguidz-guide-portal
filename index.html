@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TruGuidz — Guide Portal</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark">Z</span>
+        <span>TruGuidz <em>for Guides</em></span>
+      </div>
+      <nav id="nav" class="nav" hidden>
+        <button data-view="listings" class="nav-btn">Listings</button>
+        <button data-view="bookings" class="nav-btn">Bookings</button>
+        <button data-view="messages" class="nav-btn">Messages</button>
+        <button data-view="payouts" class="nav-btn">Payouts</button>
+        <button id="signOutBtn" class="nav-btn nav-btn-ghost">Sign Out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="app" class="app">
+    <!-- views are rendered here by app.js -->
+    <div class="loading">Loading&hellip;</div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
