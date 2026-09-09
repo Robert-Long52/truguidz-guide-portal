@@ -199,6 +199,19 @@ function money(n) {
   return `$${Number(n).toFixed(2).replace(/\.00$/, "")}`;
 }
 
+// Falls back to the plain total for a booking made before the
+// adults/children split existed (see add_adults_children_headcount.sql),
+// same fallback rule as Booking.guestSummary in the iOS app.
+function guestSummary(b) {
+  const adults = b.number_of_adults;
+  const children = b.number_of_children;
+  if (adults == null || children == null) {
+    return `${b.number_of_guests} guest${b.number_of_guests === 1 ? "" : "s"}`;
+  }
+  if (children === 0) return `${adults} adult${adults === 1 ? "" : "s"}`;
+  return `${adults} adult${adults === 1 ? "" : "s"}, ${children} child${children === 1 ? "" : "ren"}`;
+}
+
 // ---------------- Auth ----------------
 async function init() {
   const { data } = await sb.auth.getSession();
@@ -595,7 +608,7 @@ async function renderDashboardView() {
             <div>
               <span class="badge badge-pending">Pending</span>
               <strong>${escapeHtml(listing?.title || "Listing")}</strong>
-              <div class="listing-meta">${new Date(b.date).toLocaleDateString()} · ${b.number_of_guests} guest${b.number_of_guests === 1 ? "" : "s"} · ${money(b.total_price)}</div>
+              <div class="listing-meta">${new Date(b.date).toLocaleDateString()} · ${guestSummary(b)} · ${money(b.total_price)}</div>
             </div>
           </div>
           <div class="booking-actions">
@@ -732,6 +745,9 @@ function renderListingFormView(listing) {
   const selectedDays = new Set(isEdit ? listing.available_days : [0, 1, 2, 3, 4, 5, 6]);
   const pendingPhotoFiles = [null, null, null];
   const existingUrls = isEdit ? (listing.image_urls || []) : [];
+  // Sorted set of "yyyy-mm-dd" strings -- same shape as the iOS app's
+  // Listing.blockedDates (see ListingDateFormat in the Swift model).
+  const blockedDates = new Set(isEdit ? (listing.blocked_dates || []) : []);
 
   const wrap = h(`
     <div class="card" style="max-width:560px;margin:0 auto;">
@@ -786,6 +802,14 @@ function renderListingFormView(listing) {
         <div class="days-picker" id="fDays">
           ${DAY_LABELS.map((d, i) => `<div class="day-chip ${selectedDays.has(i) ? "selected" : ""}" data-day="${i}">${d}</div>`).join("")}
         </div>
+
+        <label style="margin-top:20px;">Blocked Dates</label>
+        <div class="field-hint" style="margin-top:0; margin-bottom:8px;">Block off individual days you're not available, on top of your regular weekly schedule above.</div>
+        <div style="display:flex; gap:8px;">
+          <input type="date" id="fBlockDateInput" style="flex:1;" min="${new Date().toISOString().slice(0, 10)}" />
+          <button type="button" class="btn btn-ghost btn-small" id="fAddBlockedDate">Block</button>
+        </div>
+        <div class="days-picker" id="fBlockedDatesList" style="margin-top:10px;"></div>
       </fieldset>
 
       <fieldset class="form-section">
@@ -820,6 +844,33 @@ function renderListingFormView(listing) {
       if (selectedDays.has(day)) { selectedDays.delete(day); chip.classList.remove("selected"); }
       else { selectedDays.add(day); chip.classList.add("selected"); }
     });
+  });
+
+  function renderBlockedDatesList() {
+    const list = wrap.querySelector("#fBlockedDatesList");
+    list.innerHTML = "";
+    if (blockedDates.size === 0) {
+      list.appendChild(h(`<span class="field-hint" style="margin:0;">No blocked dates yet.</span>`));
+      return;
+    }
+    Array.from(blockedDates).sort().forEach((dateStr) => {
+      const label = new Date(`${dateStr}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+      const chip = h(`<div class="day-chip selected" data-date="${dateStr}" style="cursor:pointer;" title="Click to unblock">${label} ✕</div>`);
+      chip.addEventListener("click", () => {
+        blockedDates.delete(dateStr);
+        renderBlockedDatesList();
+      });
+      list.appendChild(chip);
+    });
+  }
+  renderBlockedDatesList();
+
+  wrap.querySelector("#fAddBlockedDate").addEventListener("click", () => {
+    const input = wrap.querySelector("#fBlockDateInput");
+    if (!input.value) return;
+    blockedDates.add(input.value);
+    input.value = "";
+    renderBlockedDatesList();
   });
 
   wrap.querySelectorAll("[data-slot-input]").forEach((input) => {
@@ -880,6 +931,7 @@ function renderListingFormView(listing) {
       trip_length: tripLength,
       package_days: tripLength === "multi_day" ? (parseInt(wrap.querySelector("#fPackageDays").value, 10) || 3) : null,
       available_days: Array.from(selectedDays).sort((a, b) => a - b),
+      blocked_dates: Array.from(blockedDates).sort(),
     };
 
     const btn = wrap.querySelector("#fSave");
@@ -981,7 +1033,7 @@ async function renderBookingsView() {
             <div>
               <span class="badge ${badgeClass}">${b.status}</span>
               <strong>${escapeHtml(b.listings?.title || "Listing")}</strong>
-              <div class="listing-meta">${new Date(b.date).toLocaleDateString()} · ${b.number_of_guests} guest${b.number_of_guests === 1 ? "" : "s"} · ${money(b.total_price)}</div>
+              <div class="listing-meta">${new Date(b.date).toLocaleDateString()} · ${guestSummary(b)} · ${money(b.total_price)}</div>
             </div>
           </div>
           ${b.status === "pending" ? `
