@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>TruGuidz — Guide Portal</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -15,11 +17,12 @@
         <span>TruGuidz <em>for Guides</em></span>
       </div>
       <nav id="nav" class="nav" hidden>
-        <button data-view="listings" class="nav-btn">Listings</button>
-        <button data-view="bookings" class="nav-btn">Bookings</button>
-        <button data-view="messages" class="nav-btn">Messages</button>
-        <button data-view="payouts" class="nav-btn">Payouts</button>
-        <button id="signOutBtn" class="nav-btn nav-btn-ghost">Sign Out</button>
+        <button data-view="dashboard" class="nav-btn"></button>
+        <button data-view="listings" class="nav-btn"></button>
+        <button data-view="bookings" class="nav-btn"></button>
+        <button data-view="messages" class="nav-btn"></button>
+        <button data-view="payouts" class="nav-btn"></button>
+        <button id="signOutBtn" class="nav-btn nav-btn-ghost"></button>
       </nav>
     </div>
   </header>
@@ -28,6 +31,14 @@
     <!-- views are rendered here by app.js -->
     <div class="loading">Loading&hellip;</div>
   </main>
+
+  <nav id="mobileTabs" class="mobile-tabs" hidden>
+    <button data-view="dashboard" class="nav-btn"></button>
+    <button data-view="listings" class="nav-btn"></button>
+    <button data-view="bookings" class="nav-btn"></button>
+    <button data-view="messages" class="nav-btn"></button>
+    <button data-view="payouts" class="nav-btn"></button>
+  </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="app.js"></script>

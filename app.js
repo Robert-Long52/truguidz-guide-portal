@@ -32,6 +32,64 @@ const TRIP_LENGTH_OPTIONS = [
 ];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+// ---------------- Icons ----------------
+// Small hand-authored line-icon set, stroke-based (currentColor), so one
+// glyph works for nav buttons, stat tiles, and empty states alike without
+// pulling in an icon font/library.
+const ICONS = {
+  dashboard: `<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/>`,
+  listings: `<path d="M12 21s7-7.2 7-12.5A7 7 0 0 0 5 8.5C5 13.8 12 21 12 21Z"/><circle cx="12" cy="8.5" r="2.5"/>`,
+  bookings: `<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M16 3v4M8 3v4M3.5 10h17"/>`,
+  messages: `<path d="M4 5.5h16v11.5H9l-4.5 4V5.5Z"/>`,
+  payouts: `<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.2 9.8c0-1.2 1.2-2.1 2.8-2.1s2.8.8 2.8 2c0 2.6-5.6 1.4-5.6 4 0 1.2 1.2 2.1 2.8 2.1s2.8-.9 2.8-2.1"/>`,
+  signout: `<path d="M9.5 4.5H5.5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h4M16 16.5l4.5-4.5-4.5-4.5M20 12H9.5"/>`,
+  check: `<circle cx="12" cy="12" r="8.5"/><path d="M8 12.3l2.6 2.6L16.2 9"/>`,
+  clock: `<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3.3 1.9"/>`,
+  alert: `<circle cx="12" cy="12" r="8.5"/><path d="M12 8v5"/><circle cx="12" cy="16" r="0.6" fill="currentColor" stroke="none"/>`,
+  info: `<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><circle cx="12" cy="8" r="0.6" fill="currentColor" stroke="none"/>`,
+  camera: `<path d="M4 8.5h3l1.4-2h7.2l1.4 2h3v11H4v-11Z"/><circle cx="12" cy="14" r="3.3"/>`,
+  compass: `<circle cx="12" cy="12" r="8.5"/><path d="m14.5 9.5-1.6 4.5-4.5 1.6 1.6-4.5 4.5-1.6Z"/>`,
+  card: `<rect x="3.5" y="6" width="17" height="12.5" rx="2"/><path d="M3.5 10h17"/>`,
+};
+
+function icon(name, cls = "") {
+  return `<svg class="icon ${cls}" viewBox="0 0 24 24">${ICONS[name] || ""}</svg>`;
+}
+
+const NAV_ITEMS = [
+  { view: "dashboard", label: "Dashboard", icon: "dashboard" },
+  { view: "listings", label: "Listings", icon: "listings" },
+  { view: "bookings", label: "Bookings", icon: "bookings" },
+  { view: "messages", label: "Messages", icon: "messages" },
+  { view: "payouts", label: "Payouts", icon: "payouts" },
+];
+
+function populateNav() {
+  [navEl, mobileTabsEl].forEach((container) => {
+    NAV_ITEMS.forEach((item) => {
+      const btn = container.querySelector(`[data-view="${item.view}"]`);
+      if (btn) btn.innerHTML = `${icon(item.icon)}<span class="nav-label">${item.label}</span>`;
+    });
+  });
+  document.getElementById("signOutBtn").innerHTML = `${icon("signout")}<span class="nav-label">Sign Out</span>`;
+}
+
+function emptyState({ iconName, title, body, actionLabel, onAction }) {
+  const el = h(`
+    <div class="card empty-state">
+      <div class="empty-state-icon">${icon(iconName)}</div>
+      <div class="empty-state-title">${escapeHtml(title)}</div>
+      <div class="empty-state-body">${escapeHtml(body)}</div>
+    </div>
+  `);
+  if (actionLabel && onAction) {
+    const btn = h(`<button class="btn btn-primary">${escapeHtml(actionLabel)}</button>`);
+    btn.addEventListener("click", onAction);
+    el.appendChild(btn);
+  }
+  return el;
+}
+
 // ---------------- Availability calendar ----------------
 // Mirrors AvailabilityCalendarView.swift: a month grid where each day is
 // Booked (confirmed wins), Pending, or Open, walking each booking's full
@@ -116,7 +174,7 @@ function renderAvailabilityCalendar(bookings) {
 const state = {
   session: null,
   profile: null,
-  view: "listings",
+  view: "dashboard",
   listings: [],
   bookings: [],
   selectedBookingId: null,
@@ -125,6 +183,7 @@ const state = {
 
 const appEl = document.getElementById("app");
 const navEl = document.getElementById("nav");
+const mobileTabsEl = document.getElementById("mobileTabs");
 
 function h(html) {
   const t = document.createElement("template");
@@ -175,9 +234,13 @@ async function signOut() {
 
 // ---------------- Render root ----------------
 function render() {
-  navEl.hidden = !(state.session && state.profile && state.profile.verification_status === "approved");
-  navEl.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.view === state.view);
+  const isApproved = !!(state.session && state.profile && state.profile.verification_status === "approved");
+  navEl.hidden = !isApproved;
+  mobileTabsEl.hidden = !isApproved;
+  [navEl, mobileTabsEl].forEach((container) => {
+    container.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.view === state.view);
+    });
   });
 
   appEl.innerHTML = "";
@@ -198,69 +261,121 @@ function render() {
     return;
   }
   // approved
-  if (state.view === "listings") renderListingsView();
+  if (state.view === "dashboard") renderDashboardView();
+  else if (state.view === "listings") renderListingsView();
   else if (state.view === "bookings") renderBookingsView();
   else if (state.view === "messages") renderMessagesView();
   else if (state.view === "payouts") renderPayoutsView();
 }
 
-navEl.addEventListener("click", (e) => {
+function handleNavClick(e) {
   const btn = e.target.closest(".nav-btn[data-view]");
   if (btn) {
     state.view = btn.dataset.view;
     render();
   }
-});
+}
+navEl.addEventListener("click", handleNavClick);
+mobileTabsEl.addEventListener("click", handleNavClick);
 document.getElementById("signOutBtn").addEventListener("click", signOut);
+populateNav();
 
 // ---------------- Auth view ----------------
+const HERO_FEATURES = [
+  { icon: "compass", title: "Get discovered", body: "Explorers searching by trip type and location can find and book you directly." },
+  { icon: "bookings", title: "Run your own calendar", body: "Set your available days, confirm or decline requests, no back-and-forth texting." },
+  { icon: "card", title: "Get paid safely", body: "Payment is held when a trip's booked and released to you the moment you confirm it." },
+];
+
 function renderAuthView() {
   const wrap = h(`
-    <div class="card" style="max-width:420px;margin:40px auto;">
-      <h1>Guide Sign In</h1>
-      <p class="sub">Same account as the TruGuidz app — sign up here or sign in if you already have one.</p>
-      <div id="authError"></div>
-      <label>Email</label>
-      <input type="email" id="authEmail" autocomplete="email" />
-      <label>Password</label>
-      <input type="password" id="authPassword" autocomplete="current-password" />
-      <label>Full Name (only needed for new accounts)</label>
-      <input type="text" id="authName" autocomplete="name" />
-      <div style="display:flex; gap:10px; margin-top:20px;">
-        <button class="btn btn-primary btn-block" id="signInBtn">Sign In</button>
-        <button class="btn btn-ghost btn-block" id="signUpBtn">Create Account</button>
+    <div class="hero-shell">
+      <div class="hero-panel">
+        <p class="hero-eyebrow">TruGuidz for Guides</p>
+        <h1 class="hero-title">Run your guiding business from one place.</h1>
+        <p class="hero-body">List your trips, manage bookings, and get paid — right from your phone or computer. Same account whether you're on the TruGuidz app or here on the web.</p>
+        <ul class="hero-features">
+          ${HERO_FEATURES.map((f) => `
+            <li class="hero-feature">
+              <div class="hero-feature-icon">${icon(f.icon)}</div>
+              <div class="hero-feature-text">
+                <strong>${escapeHtml(f.title)}</strong>
+                <span>${escapeHtml(f.body)}</span>
+              </div>
+            </li>
+          `).join("")}
+        </ul>
+      </div>
+      <div class="card" id="authCard">
+        <h2 id="authHeading">Sign In</h2>
+        <p class="sub" id="authSub">Welcome back — sign in to manage your listings.</p>
+        <div id="authError"></div>
+        <label>Email</label>
+        <input type="email" id="authEmail" autocomplete="email" />
+        <label>Password</label>
+        <input type="password" id="authPassword" autocomplete="current-password" />
+        <div id="authNameWrap" hidden>
+          <label>Full Name</label>
+          <input type="text" id="authName" autocomplete="name" />
+        </div>
+        <button class="btn btn-primary btn-block" id="authSubmitBtn" style="margin-top:20px;">Sign In</button>
+        <button class="link-btn" id="authToggle" style="margin-top:16px; display:block; width:100%; text-align:center;">
+          New here? Create an account
+        </button>
       </div>
     </div>
   `);
 
+  let mode = "signin";
+
   function showError(msg) {
-    wrap.querySelector("#authError").innerHTML = msg ? `<div class="error-box">${escapeHtml(msg)}</div>` : "";
+    wrap.querySelector("#authError").innerHTML = msg ? `<div class="error-box">${icon("alert")}<span>${escapeHtml(msg)}</span></div>` : "";
   }
 
-  wrap.querySelector("#signInBtn").addEventListener("click", async () => {
+  function setMode(next) {
+    mode = next;
     showError("");
-    const email = wrap.querySelector("#authEmail").value.trim();
-    const password = wrap.querySelector("#authPassword").value;
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) return showError(error.message);
-    state.session = data.session;
-    await loadProfile();
-    render();
-  });
+    const isSignUp = mode === "signup";
+    wrap.querySelector("#authHeading").textContent = isSignUp ? "Create Your Account" : "Sign In";
+    wrap.querySelector("#authSub").textContent = isSignUp
+      ? "One account works on the app and here on the web."
+      : "Welcome back — sign in to manage your listings.";
+    wrap.querySelector("#authNameWrap").hidden = !isSignUp;
+    wrap.querySelector("#authSubmitBtn").textContent = isSignUp ? "Create Account" : "Sign In";
+    wrap.querySelector("#authToggle").textContent = isSignUp
+      ? "Already have an account? Sign in"
+      : "New here? Create an account";
+  }
 
-  wrap.querySelector("#signUpBtn").addEventListener("click", async () => {
+  wrap.querySelector("#authToggle").addEventListener("click", () => setMode(mode === "signin" ? "signup" : "signin"));
+
+  wrap.querySelector("#authSubmitBtn").addEventListener("click", async () => {
     showError("");
     const email = wrap.querySelector("#authEmail").value.trim();
     const password = wrap.querySelector("#authPassword").value;
+    const btn = wrap.querySelector("#authSubmitBtn");
+    btn.disabled = true;
+
+    if (mode === "signin") {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) { showError(error.message); btn.disabled = false; return; }
+      state.session = data.session;
+      await loadProfile();
+      render();
+      return;
+    }
+
     const name = wrap.querySelector("#authName").value.trim();
-    if (!name) return showError("Enter your full name to create an account.");
+    if (!name) { showError("Enter your full name to create an account."); btn.disabled = false; return; }
     const { data, error } = await sb.auth.signUp({
       email, password,
       options: { data: { name } }, // read by the handle_new_user trigger, same as the iOS signup flow
     });
-    if (error) return showError(error.message);
+    if (error) { showError(error.message); btn.disabled = false; return; }
     if (!data.session) {
-      return showError("Check your email to confirm your account, then sign in here.");
+      showError("Check your email for a confirmation link, then come back and sign in.");
+      btn.disabled = false;
+      return;
     }
     state.session = data.session;
     await loadProfile();
@@ -274,36 +389,42 @@ function renderAuthView() {
 function renderApplyView() {
   const rejected = state.profile.verification_status === "rejected";
   const wrap = h(`
-    <div class="card" style="max-width:520px;margin:20px auto;">
+    <div class="card" style="max-width:540px;margin:20px auto;">
       <h1>Become a Guide</h1>
-      <p class="sub">Tell us about yourself and upload a photo ID. We manually review every application before your listings go live.</p>
-      ${rejected ? `<div class="error-box">Your previous application wasn't approved. You're welcome to re-apply with updated info.</div>` : ""}
+      <p class="sub">A couple minutes of setup, then we review it by hand — usually same day.</p>
+      ${rejected ? `<div class="error-box">${icon("alert")}<span>Your previous application wasn't approved. You're welcome to re-apply with updated info.</span></div>` : ""}
       <div id="applyError"></div>
 
-      <label>Phone Number</label>
-      <input type="tel" id="applyPhone" />
+      <fieldset class="form-section">
+        <legend>About You</legend>
+        <label>Phone Number</label>
+        <input type="tel" id="applyPhone" placeholder="(555) 555-5555" />
 
-      <label>Years of Experience Guiding</label>
-      <input type="number" id="applyYears" min="0" max="50" value="1" />
+        <label>Years of Experience Guiding</label>
+        <input type="number" id="applyYears" min="0" max="50" value="1" />
 
-      <label>Bio</label>
-      <textarea id="applyBio" placeholder="Explorers will see this on your listings."></textarea>
+        <label>Bio</label>
+        <textarea id="applyBio" placeholder="What you guide, where, and what makes a trip with you worth booking. Explorers will see this on your listings."></textarea>
+      </fieldset>
 
-      <label>Government-Issued Photo ID</label>
-      <input type="file" id="applyIdPhoto" accept="image/*" />
-      <div class="field-hint">Only used to verify your identity. Never shown publicly.</div>
+      <fieldset class="form-section">
+        <legend>Verification</legend>
+        <label>Government-Issued Photo ID</label>
+        <input type="file" id="applyIdPhoto" accept="image/*" />
+        <div class="field-hint">Only used to verify your identity — never shown publicly, and stored in a private, access-controlled file.</div>
 
-      <div class="checkbox-row">
-        <input type="checkbox" id="applyWaiver" />
-        <label for="applyWaiver">I've read and accept the TruGuidz Guide Agreement and consent to identity verification.</label>
-      </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="applyWaiver" />
+          <label for="applyWaiver">I've read and accept the TruGuidz Guide Agreement and consent to identity verification.</label>
+        </div>
+      </fieldset>
 
-      <button class="btn btn-primary btn-block" id="applySubmit" style="margin-top:10px;">Submit Application</button>
+      <button class="btn btn-primary btn-block" id="applySubmit">Submit Application</button>
     </div>
   `);
 
   function showError(msg) {
-    wrap.querySelector("#applyError").innerHTML = msg ? `<div class="error-box">${escapeHtml(msg)}</div>` : "";
+    wrap.querySelector("#applyError").innerHTML = msg ? `<div class="error-box">${icon("alert")}<span>${escapeHtml(msg)}</span></div>` : "";
   }
 
   wrap.querySelector("#applySubmit").addEventListener("click", async () => {
@@ -375,8 +496,9 @@ function renderApplyView() {
 function renderPendingView() {
   return h(`
     <div class="card" style="max-width:480px;margin:60px auto;text-align:center;">
+      <div class="empty-state-icon" style="margin:0 auto 18px;">${icon("clock")}</div>
       <h1>Application Submitted</h1>
-      <p class="sub">We're reviewing your application now. You'll be able to list trips here as soon as it's approved.</p>
+      <p class="sub">We're reviewing your application now — usually same day. You'll be able to list trips here as soon as it's approved.</p>
       <button class="btn btn-ghost" id="pendingSignOut">Sign Out</button>
     </div>
   `);
@@ -386,6 +508,149 @@ document.addEventListener("click", (e) => {
   if (e.target && e.target.id === "pendingSignOut") signOut();
 });
 
+// ---------------- Dashboard ----------------
+// Mirrors GuidzDashboardView.swift's home tab: a quick read on what needs
+// attention, then the same availability calendar, rather than dropping a
+// newly-approved guide straight into an empty Listings tab with no
+// orientation.
+async function renderDashboardView() {
+  appEl.innerHTML = `<div class="loading">Loading your dashboard&hellip;</div>`;
+  await Promise.all([loadListings(), loadBookings()]);
+
+  const activeListings = state.listings.filter((l) => l.is_active);
+  const pendingBookings = state.bookings.filter((b) => b.status === "pending");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const upcoming = state.bookings.filter((b) => {
+    if (b.status !== "confirmed") return false;
+    return new Date(b.end_date) >= today;
+  });
+  const stripeReady = !!state.profile.stripe_charges_enabled;
+
+  const wrap = h(`
+    <div>
+      <div class="dash-greeting">
+        <h1>Welcome back, ${escapeHtml(state.profile.name || "Guide")}</h1>
+        <p class="sub">Here's what's happening with your trips.</p>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-tile">
+          <div class="stat-tile-icon">${icon("listings")}</div>
+          <div class="stat-tile-value">${activeListings.length}</div>
+          <div class="stat-tile-label">Active Listings</div>
+        </div>
+        <div class="stat-tile ${pendingBookings.length ? "warn" : ""}">
+          <div class="stat-tile-icon">${icon("clock")}</div>
+          <div class="stat-tile-value">${pendingBookings.length}</div>
+          <div class="stat-tile-label">Needs a Response</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-tile-icon">${icon("bookings")}</div>
+          <div class="stat-tile-value">${upcoming.length}</div>
+          <div class="stat-tile-label">Upcoming Trips</div>
+        </div>
+        <div class="stat-tile ${stripeReady ? "ok" : "warn"}">
+          <div class="stat-tile-icon">${icon("payouts")}</div>
+          <div class="stat-tile-value">${stripeReady ? "Ready" : "Setup"}</div>
+          <div class="stat-tile-label">Payouts</div>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <div class="section-block-head">
+          <h2>Availability</h2>
+          <button class="link-btn" id="dashViewBookings">View all bookings</button>
+        </div>
+        <div id="dashCalendar"></div>
+      </div>
+
+      <div class="section-block" id="dashAttentionBlock" hidden>
+        <div class="section-block-head"><h2>Needs Your Response</h2></div>
+        <div class="card" id="dashAttentionBody"></div>
+      </div>
+
+      <div class="section-block">
+        <div class="section-block-head">
+          <h2>Your Listings</h2>
+          <button class="link-btn" id="dashNewListing">+ New Listing</button>
+        </div>
+        <div id="dashListingsBody"></div>
+      </div>
+    </div>
+  `);
+
+  wrap.querySelector("#dashCalendar").appendChild(renderAvailabilityCalendar(state.bookings));
+  wrap.querySelector("#dashViewBookings").addEventListener("click", () => { state.view = "bookings"; render(); });
+  wrap.querySelector("#dashNewListing").addEventListener("click", () => renderListingFormView(null));
+
+  if (pendingBookings.length > 0) {
+    wrap.querySelector("#dashAttentionBlock").hidden = false;
+    const attnBody = wrap.querySelector("#dashAttentionBody");
+    pendingBookings.forEach((b, i) => {
+      const listing = state.listings.find((l) => l.id === b.listing_id);
+      const row = h(`
+        <div class="booking-card" style="${i === 0 ? "padding-top:0;" : ""}">
+          <div class="booking-top">
+            <div>
+              <span class="badge badge-pending">Pending</span>
+              <strong>${escapeHtml(listing?.title || "Listing")}</strong>
+              <div class="listing-meta">${new Date(b.date).toLocaleDateString()} · ${b.number_of_guests} guest${b.number_of_guests === 1 ? "" : "s"} · ${money(b.total_price)}</div>
+            </div>
+          </div>
+          <div class="booking-actions">
+            <button class="btn btn-success btn-small" data-confirm="${b.id}">Confirm</button>
+            <button class="btn btn-danger btn-small" data-decline="${b.id}">Decline</button>
+          </div>
+        </div>
+      `);
+      attnBody.appendChild(row);
+    });
+    wireBookingActionButtons(attnBody, () => renderDashboardView());
+  }
+
+  const listingsBody = wrap.querySelector("#dashListingsBody");
+  if (state.listings.length === 0) {
+    listingsBody.appendChild(emptyState({
+      iconName: "listings",
+      title: "No listings yet",
+      body: "Publish your first trip to start getting bookings.",
+      actionLabel: "Create Your First Listing",
+      onAction: () => renderListingFormView(null),
+    }));
+  } else {
+    listingsBody.appendChild(renderListingGrid(state.listings.slice(0, 3)));
+    if (state.listings.length > 3) {
+      const more = h(`<button class="link-btn" style="margin-top:12px;">View all ${state.listings.length} listings</button>`);
+      more.addEventListener("click", () => { state.view = "listings"; render(); });
+      listingsBody.appendChild(more);
+    }
+  }
+
+  appEl.innerHTML = "";
+  appEl.appendChild(wrap);
+}
+
+function wireBookingActionButtons(container, onDone) {
+  container.querySelectorAll("[data-confirm]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      const { error } = await sb.functions.invoke("stripe-capture-payment", { body: { bookingId: btn.dataset.confirm } });
+      if (error) { alert("Could not confirm booking: " + error.message); btn.disabled = false; return; }
+      onDone();
+    });
+  });
+  container.querySelectorAll("[data-decline]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Decline this booking request?")) return;
+      btn.disabled = true;
+      const { error } = await sb.functions.invoke("stripe-cancel-payment", { body: { bookingId: btn.dataset.decline } });
+      if (error) { alert("Could not decline booking: " + error.message); btn.disabled = false; return; }
+      onDone();
+    });
+  });
+}
+
 // ---------------- Listings ----------------
 async function loadListings() {
   const { data, error } = await sb
@@ -394,6 +659,31 @@ async function loadListings() {
     .eq("guide_id", state.session.user.id)
     .order("created_at", { ascending: false });
   if (!error) state.listings = data;
+}
+
+function renderListingGrid(listings) {
+  const grid = h(`<div class="listing-grid"></div>`);
+  listings.forEach((listing) => {
+    const cover = listing.image_urls?.[0];
+    const card = h(`
+      <div class="listing-card ${listing.is_active ? "" : "inactive"}">
+        ${cover
+          ? `<img class="listing-photo" src="${cover}" onerror="this.style.visibility='hidden'" />`
+          : `<div class="listing-photo-placeholder">${icon("camera")}</div>`}
+        <div class="listing-info">
+          ${!listing.is_active ? `<span class="badge badge-inactive">Inactive</span>` : ""}
+          <div class="listing-title">${escapeHtml(listing.title)}</div>
+          <div class="listing-meta">${escapeHtml(listing.location_name)} · ${escapeHtml(listing.category)} · ${money(listing.price_per_person)}</div>
+        </div>
+        <div class="listing-actions">
+          <button class="btn btn-ghost btn-small" data-edit="${listing.id}">Edit</button>
+        </div>
+      </div>
+    `);
+    card.querySelector("[data-edit]").addEventListener("click", () => renderListingFormView(listing));
+    grid.appendChild(card);
+  });
+  return grid;
 }
 
 async function renderListingsView() {
@@ -412,27 +702,13 @@ async function renderListingsView() {
   const body = wrap.querySelector("#listingsBody");
 
   if (state.listings.length === 0) {
-    body.appendChild(h(`<div class="card empty-state">No listings yet. Create your first trip to start getting bookings.</div>`));
+    body.appendChild(emptyState({
+      iconName: "listings",
+      title: "No listings yet",
+      body: "Create your first trip to start getting bookings from explorers.",
+    }));
   } else {
-    const grid = h(`<div class="listing-grid"></div>`);
-    state.listings.forEach((listing) => {
-      const card = h(`
-        <div class="listing-card ${listing.is_active ? "" : "inactive"}">
-          <img class="listing-photo" src="${listing.image_urls?.[0] || ""}" onerror="this.style.visibility='hidden'" />
-          <div class="listing-info">
-            ${!listing.is_active ? `<span class="badge badge-inactive">Inactive</span>` : ""}
-            <div class="listing-title">${escapeHtml(listing.title)}</div>
-            <div class="listing-meta">${escapeHtml(listing.location_name)} · ${escapeHtml(listing.category)} · ${money(listing.price_per_person)}</div>
-          </div>
-          <div class="listing-actions">
-            <button class="btn btn-ghost btn-small" data-edit="${listing.id}">Edit</button>
-          </div>
-        </div>
-      `);
-      card.querySelector("[data-edit]").addEventListener("click", () => renderListingFormView(listing));
-      grid.appendChild(card);
-    });
-    body.appendChild(grid);
+    body.appendChild(renderListingGrid(state.listings));
   }
 
   wrap.querySelector("#newListingBtn").addEventListener("click", () => renderListingFormView(null));
@@ -460,53 +736,69 @@ function renderListingFormView(listing) {
   const wrap = h(`
     <div class="card" style="max-width:560px;margin:0 auto;">
       <h1>${isEdit ? "Edit Listing" : "New Listing"}</h1>
+      <p class="sub">${isEdit ? "Update the details explorers see for this trip." : "A few details and you're bookable."}</p>
       <div id="formError"></div>
 
-      <label>Title</label>
-      <input type="text" id="fTitle" value="${isEdit ? escapeHtml(listing.title) : ""}" placeholder="e.g. Susquehanna Bass Excursion" />
+      <fieldset class="form-section">
+        <legend>Trip Basics</legend>
+        <label>Title</label>
+        <input type="text" id="fTitle" value="${isEdit ? escapeHtml(listing.title) : ""}" placeholder="e.g. Susquehanna Bass Excursion" />
 
-      <label>Category</label>
-      <select id="fCategory">
-        ${CATEGORY_OPTIONS.map(o => `<option value="${o.value}" ${isEdit && listing.category === o.value ? "selected" : ""}>${o.label}</option>`).join("")}
-      </select>
+        <label>Category</label>
+        <select id="fCategory">
+          ${CATEGORY_OPTIONS.map(o => `<option value="${o.value}" ${isEdit && listing.category === o.value ? "selected" : ""}>${o.label}</option>`).join("")}
+        </select>
 
-      <label>Description</label>
-      <textarea id="fDescription">${isEdit ? escapeHtml(listing.description) : ""}</textarea>
+        <label>Trip Length</label>
+        <select id="fTripLength">
+          ${TRIP_LENGTH_OPTIONS.map(o => `<option value="${o.value}" ${isEdit && listing.trip_length === o.value ? "selected" : ""}>${o.label}</option>`).join("")}
+        </select>
+        <div id="fPackageDaysWrap" style="display:${isEdit && listing.trip_length === "multi_day" ? "block" : "none"};">
+          <label>Package Length (days)</label>
+          <input type="number" id="fPackageDays" min="2" max="30" value="${isEdit && listing.package_days ? listing.package_days : 3}" />
+        </div>
 
-      <label>Location (e.g. Catawissa, PA)</label>
-      <input type="text" id="fLocation" value="${isEdit ? escapeHtml(listing.location_name) : ""}" />
+        <label>Location</label>
+        <input type="text" id="fLocation" value="${isEdit ? escapeHtml(listing.location_name) : ""}" placeholder="e.g. Ocean City, MD" />
+      </fieldset>
 
-      <label>Pricing</label>
-      <select id="fPricingUnit">
-        ${PRICING_OPTIONS.map(o => `<option value="${o.value}" ${isEdit && listing.pricing_unit === o.value ? "selected" : ""}>${o.label}</option>`).join("")}
-      </select>
-      <input type="number" id="fPrice" min="0" step="0.01" value="${isEdit ? listing.price_per_person : ""}" placeholder="Price ($)" style="margin-top:8px;" />
+      <fieldset class="form-section">
+        <legend>Description</legend>
+        <label>What should explorers know before booking?</label>
+        <textarea id="fDescription" placeholder="What you're running, what's included, what to bring.">${isEdit ? escapeHtml(listing.description) : ""}</textarea>
+      </fieldset>
 
-      <label>Max Group Size</label>
-      <input type="number" id="fMaxGroup" min="1" value="${isEdit ? listing.max_group_size : 4}" />
+      <fieldset class="form-section">
+        <legend>Pricing &amp; Group Size</legend>
+        <label>Pricing</label>
+        <select id="fPricingUnit">
+          ${PRICING_OPTIONS.map(o => `<option value="${o.value}" ${isEdit && listing.pricing_unit === o.value ? "selected" : ""}>${o.label}</option>`).join("")}
+        </select>
+        <input type="number" id="fPrice" min="0" step="0.01" value="${isEdit ? listing.price_per_person : ""}" placeholder="Price ($)" style="margin-top:8px;" />
 
-      <label>Trip Length</label>
-      <select id="fTripLength">
-        ${TRIP_LENGTH_OPTIONS.map(o => `<option value="${o.value}" ${isEdit && listing.trip_length === o.value ? "selected" : ""}>${o.label}</option>`).join("")}
-      </select>
-      <div id="fPackageDaysWrap" style="display:${isEdit && listing.trip_length === "multi_day" ? "block" : "none"};">
-        <label>Package Length (days)</label>
-        <input type="number" id="fPackageDays" min="2" max="30" value="${isEdit && listing.package_days ? listing.package_days : 3}" />
-      </div>
+        <label>Max Group Size</label>
+        <input type="number" id="fMaxGroup" min="1" value="${isEdit ? listing.max_group_size : 4}" />
+      </fieldset>
 
-      <label>Available Days</label>
-      <div class="days-picker" id="fDays">
-        ${DAY_LABELS.map((d, i) => `<div class="day-chip ${selectedDays.has(i) ? "selected" : ""}" data-day="${i}">${d}</div>`).join("")}
-      </div>
+      <fieldset class="form-section">
+        <legend>Availability</legend>
+        <label>Which days do you run this trip?</label>
+        <div class="days-picker" id="fDays">
+          ${DAY_LABELS.map((d, i) => `<div class="day-chip ${selectedDays.has(i) ? "selected" : ""}" data-day="${i}">${d}</div>`).join("")}
+        </div>
+      </fieldset>
 
-      <label>Photos (up to 3 — first is the cover shown on cards)</label>
-      <div class="photo-inputs" id="fPhotos">
-        ${photoSlotHtml(0, existingUrls[0])}
-        ${photoSlotHtml(1, existingUrls[1])}
-        ${photoSlotHtml(2, existingUrls[2])}
-      </div>
+      <fieldset class="form-section">
+        <legend>Photos</legend>
+        <label>Up to 3 — the first is the cover photo shown on your listing card</label>
+        <div class="photo-inputs" id="fPhotos">
+          ${photoSlotHtml(0, existingUrls[0])}
+          ${photoSlotHtml(1, existingUrls[1])}
+          ${photoSlotHtml(2, existingUrls[2])}
+        </div>
+      </fieldset>
 
-      <div style="display:flex; gap:10px; margin-top:24px;">
+      <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">
         <button class="btn btn-primary" id="fSave">${isEdit ? "Save Changes" : "Publish Listing"}</button>
         <button class="btn btn-ghost" id="fCancel">Cancel</button>
         ${isEdit ? `<button class="btn ${listing.is_active ? "btn-danger" : "btn-success"}" id="fToggleActive" style="margin-left:auto;">${listing.is_active ? "Deactivate" : "Reactivate"}</button>` : ""}
@@ -515,7 +807,7 @@ function renderListingFormView(listing) {
   `);
 
   function showError(msg) {
-    wrap.querySelector("#formError").innerHTML = msg ? `<div class="error-box">${escapeHtml(msg)}</div>` : "";
+    wrap.querySelector("#formError").innerHTML = msg ? `<div class="error-box">${icon("alert")}<span>${escapeHtml(msg)}</span></div>` : "";
   }
 
   wrap.querySelector("#fTripLength").addEventListener("change", (e) => {
@@ -551,7 +843,7 @@ function renderListingFormView(listing) {
     });
   });
 
-  wrap.querySelector("#fCancel").addEventListener("click", renderListingsView);
+  wrap.querySelector("#fCancel").addEventListener("click", render);
 
   if (isEdit) {
     wrap.querySelector("#fToggleActive").addEventListener("click", async () => {
@@ -561,7 +853,7 @@ function renderListingFormView(listing) {
       }
       const { error } = await sb.from("listings").update({ is_active: newValue }).eq("id", listing.id);
       if (error) return showError(error.message);
-      renderListingsView();
+      render();
     });
   }
 
@@ -637,7 +929,7 @@ function renderListingFormView(listing) {
         await sb.from("listings").update({ image_urls: cleanedUrls }).eq("id", listingId);
       }
 
-      renderListingsView();
+      render();
     } catch (err) {
       showError(err.message || "Something went wrong saving this listing.");
       btn.disabled = false;
@@ -674,7 +966,11 @@ async function renderBookingsView() {
   const body = wrap.querySelector("#bookingsBody");
 
   if (state.bookings.length === 0) {
-    body.appendChild(h(`<div class="card empty-state">No bookings yet.</div>`));
+    body.appendChild(emptyState({
+      iconName: "bookings",
+      title: "No bookings yet",
+      body: "Requests against your listings will show up here.",
+    }));
   } else {
     const card = h(`<div class="card"></div>`);
     state.bookings.forEach((b) => {
@@ -699,24 +995,7 @@ async function renderBookingsView() {
       card.appendChild(row);
     });
     body.appendChild(card);
-
-    body.querySelectorAll("[data-confirm]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        btn.disabled = true;
-        const { error } = await sb.functions.invoke("stripe-capture-payment", { body: { bookingId: btn.dataset.confirm } });
-        if (error) { alert("Could not confirm booking: " + error.message); btn.disabled = false; return; }
-        renderBookingsView();
-      });
-    });
-    body.querySelectorAll("[data-decline]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        if (!confirm("Decline this booking request?")) return;
-        btn.disabled = true;
-        const { error } = await sb.functions.invoke("stripe-cancel-payment", { body: { bookingId: btn.dataset.decline } });
-        if (error) { alert("Could not decline booking: " + error.message); btn.disabled = false; return; }
-        renderBookingsView();
-      });
-    });
+    wireBookingActionButtons(body, () => renderBookingsView());
   }
 
   appEl.innerHTML = "";
@@ -733,7 +1012,11 @@ async function renderMessagesView() {
   const body = wrap.querySelector("#msgBody");
 
   if (messageable.length === 0) {
-    body.appendChild(h(`<div class="card empty-state">Messaging opens once a booking is confirmed.</div>`));
+    body.appendChild(emptyState({
+      iconName: "messages",
+      title: "No conversations yet",
+      body: "Messaging opens automatically once a booking is confirmed.",
+    }));
   } else {
     const list = h(`<div class="thread-list"></div>`);
     messageable.forEach((b) => {
@@ -801,18 +1084,36 @@ async function renderThreadView(booking) {
 // ---------------- Payouts (Stripe Connect) ----------------
 async function renderPayoutsView() {
   const enabled = state.profile.stripe_charges_enabled;
+  const feeWaived = state.profile.platform_fee_waived === true;
   const wrap = h(`
     <div class="card" style="max-width:480px;margin:0 auto;">
       <h1>Payouts</h1>
       <p class="sub">Payments are handled through Stripe Connect — the same setup as the iOS app.</p>
       ${enabled
-        ? `<div class="info-box">✓ Your Stripe account is connected and ready to accept payments.</div>`
-        : `<div class="error-box">You haven't finished connecting Stripe yet — your listings won't be bookable until you do.</div>`
+        ? `<div class="success-box">${icon("check")}<span>Your Stripe account is connected and ready to accept payments.</span></div>`
+        : `<div class="error-box">${icon("alert")}<span>You haven't finished connecting Stripe yet — your listings won't be bookable until you do.</span></div>`
       }
       <button class="btn btn-primary btn-block" id="stripeConnectBtn" style="margin-top:14px;">
         ${enabled ? "Manage Stripe Account" : "Connect with Stripe"}
       </button>
       <div id="payoutsError"></div>
+
+      <div class="section-heading" style="margin-top:26px;">How you get paid</div>
+      <div class="fee-row">
+        <span class="fee-row-label">When funds move</span>
+        <span class="fee-row-value">On your confirmation</span>
+      </div>
+      <div class="fee-row">
+        <span class="fee-row-label">TruGuidz platform fee</span>
+        <span class="fee-row-value ${feeWaived ? "waived" : ""}">${feeWaived ? "Waived" : "10% per booking"}</span>
+      </div>
+      <div class="fee-row">
+        <span class="fee-row-label">Stripe processing</span>
+        <span class="fee-row-value">Standard rate applies</span>
+      </div>
+      <p class="field-hint" style="margin-top:12px;">
+        A guest's card is authorized when they request a trip, but nothing is charged until you confirm — decline a request and they're never charged.
+      </p>
     </div>
   `);
 
@@ -825,7 +1126,7 @@ async function renderPayoutsView() {
       if (error) throw error;
       window.location.href = data.url;
     } catch (err) {
-      wrap.querySelector("#payoutsError").innerHTML = `<div class="error-box">${escapeHtml(err.message || "Could not start Stripe onboarding.")}</div>`;
+      wrap.querySelector("#payoutsError").innerHTML = `<div class="error-box">${icon("alert")}<span>${escapeHtml(err.message || "Could not start Stripe onboarding.")}</span></div>`;
       btn.disabled = false;
       btn.textContent = enabled ? "Manage Stripe Account" : "Connect with Stripe";
     }
